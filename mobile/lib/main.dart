@@ -118,6 +118,25 @@ class _RemotePageState extends State<RemotePage> {
                             'play_pause': '재생/일시정지',
                             'next': '다음'
                           }[action]!)),
+                    for (final name in [
+                      'chrome',
+                      'edge',
+                      'notepad',
+                      'calculator'
+                    ])
+                      OutlinedButton(
+                          onPressed: () =>
+                              remote.send({'type': 'launch', 'name': name}),
+                          child: Text({
+                            'chrome': 'Chrome',
+                            'edge': 'Edge',
+                            'notepad': '메모장',
+                            'calculator': '계산기'
+                          }[name]!)),
+                    OutlinedButton(
+                        onPressed: () =>
+                            remote.send({'type': 'system', 'action': 'lock'}),
+                        child: const Text('PC 잠금')),
                     for (final key in [
                       'enter',
                       'escape',

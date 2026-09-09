@@ -22,7 +22,7 @@ class WebSocketService extends ChangeNotifier {
     if (messages.length > 30) messages.removeLast();
   }
 
-  Future<void> connect(String host, String accessKey) async {
+  Future<void> connect(String host, String accessKey, {int port = 8765}) async {
     if (busy || connected) return;
     final address = InternetAddress.tryParse(host);
     if (address == null || address.type != InternetAddressType.IPv4) {
@@ -35,7 +35,7 @@ class WebSocketService extends ChangeNotifier {
     status = '연결 중…';
     _update();
     final pending = WebSocket.connect(
-        Uri(scheme: 'ws', host: host, port: 8765, path: '/ws').toString(),
+        Uri(scheme: 'ws', host: host, port: port, path: '/ws').toString(),
         headers: {'Authorization': 'Bearer $accessKey'});
     var expired = false;
     pending.then((socket) {

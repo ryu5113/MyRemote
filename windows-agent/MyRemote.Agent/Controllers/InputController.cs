@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Diagnostics;
 
 namespace MyRemote.Agent.Controllers;
 
@@ -39,6 +40,19 @@ public sealed class InputController
             case "media":
                 Tap(Text(command, "action") switch { "play_pause" => 0xB3, "next" => 0xB0, "previous" => 0xB1, "stop" => 0xB2, _ => throw new ArgumentException("Unsupported media action") });
                 break;
+            case "system":
+                if (Text(command, "action") != "lock") throw new ArgumentException("Only lock is available");
+                if (!LockWorkStation()) throw new Win32Exception(Marshal.GetLastWin32Error());
+                break;
+            case "launch":
+                var name = Text(command, "name");
+                var target = name switch
+                {
+                    "chrome" => "chrome.exe", "edge" => "msedge.exe", "notepad" => "notepad.exe",
+                    "calculator" => "calc.exe", _ => throw new ArgumentException("Application is not allow-listed")
+                };
+                Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+                break;
             default: throw new ArgumentException("Unsupported command");
         }
         return new { type = "command_completed", command = type };
@@ -70,4 +84,5 @@ public sealed class InputController
     [StructLayout(LayoutKind.Sequential)] private struct MouseInput { public int Dx, Dy; public uint MouseData, Flags, Time; public UIntPtr Extra; }
     [StructLayout(LayoutKind.Sequential)] private struct KeyboardInput { public ushort Vk, Scan; public uint Flags, Time; public UIntPtr Extra; }
     [DllImport("user32.dll", SetLastError = true)] private static extern uint SendInput(uint count, Input[] inputs, int size);
+    [DllImport("user32.dll", SetLastError = true)] private static extern bool LockWorkStation();
 }

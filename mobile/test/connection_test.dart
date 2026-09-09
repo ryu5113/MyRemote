@@ -15,7 +15,8 @@ void main() {
   });
 
   test('auth header, message round trip, disconnect and reconnect', () async {
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 8765);
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final port = server.port;
     addTearDown(() => server.close(force: true));
     final sockets = <WebSocket>[];
     addTearDown(() async {
@@ -31,7 +32,7 @@ void main() {
     });
     final remote = WebSocketService();
     addTearDown(remote.dispose);
-    await remote.connect('127.0.0.1', 'test-access-key');
+    await remote.connect('127.0.0.1', 'test-access-key', port: port);
     expect(remote.connected, true);
     final received = Completer<void>();
     remote.addListener(() {
@@ -44,7 +45,7 @@ void main() {
     expect(jsonDecode(remote.messages.first)['text'], '안녕하세요');
     remote.disconnect();
     expect(remote.connected, false);
-    await remote.connect('127.0.0.1', 'test-access-key');
+    await remote.connect('127.0.0.1', 'test-access-key', port: port);
     expect(remote.connected, true);
     remote.disconnect();
   });
