@@ -3,10 +3,17 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text;
+using MyRemote.Agent.Controllers;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.WebHost.UseUrls("http://0.0.0.0:8765");
+builder.WebHost.UseUrls(builder.Configuration["urls"] ?? "http://0.0.0.0:8765");
 var app = builder.Build();
+var accessKey = Environment.GetEnvironmentVariable("MYREMOTE_KEY") ?? Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
+if (accessKey.Length < 16) throw new InvalidOperationException("MYREMOTE_KEY must contain at least 16 characters.");
+Console.WriteLine($"Connection key: {accessKey}");
+var controller = new InputController();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(20) });
 app.MapGet("/health", () => new { name = "MyRemote Agent", version = "0.1.0" });
 app.Map("/ws", async context =>
@@ -14,6 +21,12 @@ app.Map("/ws", async context =>
     if (!context.WebSockets.IsWebSocketRequest)
     {
         context.Response.StatusCode = 400;
+        return;
+    }
+    var supplied = context.Request.Headers.Authorization.ToString();
+    if (!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(supplied), Encoding.UTF8.GetBytes("Bearer " + accessKey)))
+    {
+        context.Response.StatusCode = 401;
         return;
     }
     using var socket = await context.WebSockets.AcceptWebSocketAsync();
@@ -66,7 +79,7 @@ app.Map("/ws", async context =>
                         response = new { type = "message_received", text = text.GetString() };
                         break;
                     default:
-                        response = new { type = "error", message = "Unsupported command" };
+                        response = controller.Execute(root);
                         break;
                 }
             }
@@ -74,6 +87,8 @@ app.Map("/ws", async context =>
             {
                 response = new { type = "error", message = "Expected a JSON object with string type and string text for test_message" };
             }
+            catch (ArgumentException ex) { response = new { type = "error", message = ex.Message }; }
+            catch (System.ComponentModel.Win32Exception) { response = new { type = "error", message = "Windows rejected input. Elevated applications cannot be controlled by a normal agent." }; }
             await Send(socket, response, token);
         }
     }
@@ -82,6 +97,7 @@ app.Map("/ws", async context =>
     finally { app.Logger.LogInformation("Phone disconnected: {Peer}", peer); }
 });
 
+if (builder.Configuration["urls"] is null)
 foreach (var address in NetworkInterface.GetAllNetworkInterfaces()
     .Where(n => n.OperationalStatus == OperationalStatus.Up)
     .SelectMany(n => n.GetIPProperties().UnicastAddresses)
