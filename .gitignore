@@ -1,0 +1,7 @@
+**/bin/
+**/obj/
+**/.dart_tool/
+**/build/
+**/.flutter-plugins*
+**/local.properties
+.idea/
