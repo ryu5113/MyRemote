@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
 using MyRemote.Agent.Controllers;
+using QRCoder;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.UseUrls(builder.Configuration["urls"] ?? "http://0.0.0.0:8765");
@@ -16,6 +17,20 @@ Console.WriteLine($"Connection key: {accessKey}");
 var controller = new InputController();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(20) });
 app.MapGet("/health", () => new { name = "MyRemote Agent", version = "0.1.0" });
+app.MapGet("/pairing.png", (HttpContext context) =>
+{
+    if (context.Connection.RemoteIpAddress is not { } peer || !IPAddress.IsLoopback(peer))
+        return Results.StatusCode(StatusCodes.Status403Forbidden);
+    var address = NetworkInterface.GetAllNetworkInterfaces()
+        .Where(n => n.OperationalStatus == OperationalStatus.Up)
+        .SelectMany(n => n.GetIPProperties().UnicastAddresses)
+        .Select(a => a.Address)
+        .FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(a))?.ToString() ?? "127.0.0.1";
+    var payload = $"myremote://pair?host={address}&port=8765&key={Uri.EscapeDataString(accessKey)}";
+    using var qr = new QRCodeGenerator();
+    using var data = qr.CreateQrCode(payload, QRCodeGenerator.ECCLevel.Q);
+    return Results.File(new PngByteQRCode(data).GetGraphic(12), "image/png");
+});
 app.Map("/ws", async context =>
 {
     if (!context.WebSockets.IsWebSocketRequest)

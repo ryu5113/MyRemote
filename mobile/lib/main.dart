@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'services/websocket_service.dart';
 import 'widgets/touchpad.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 void main() => runApp(const MyRemoteApp());
 
@@ -26,6 +27,14 @@ class _RemotePageState extends State<RemotePage> {
   final accessKey = TextEditingController();
   final message = TextEditingController(text: 'Hello Windows');
   final remote = WebSocketService();
+
+  Future<void> scanPairingCode() async {
+    final result = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => const _ScannerPage()));
+    if (!mounted || result == null) return;
+    final uri = Uri.tryParse(result);
+    if (uri?.scheme != 'myremote' || uri?.host != 'pair') return;
+    setState(() { ip.text = uri!.queryParameters['host'] ?? ''; accessKey.text = uri.queryParameters['key'] ?? ''; });
+  }
 
   @override
   void dispose() {
@@ -85,6 +94,7 @@ class _RemotePageState extends State<RemotePage> {
                           ? '연결 해제'
                           : '연결'),
                 ),
+                OutlinedButton.icon(onPressed: scanPairingCode, icon: const Icon(Icons.qr_code_scanner), label: const Text('QR로 자동 입력')),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: Icon(Icons.circle,
@@ -188,4 +198,16 @@ class _RemotePageState extends State<RemotePage> {
           ),
         ),
       );
+}
+
+class _ScannerPage extends StatelessWidget {
+  const _ScannerPage();
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Agent QR 스캔')),
+    body: MobileScanner(onDetect: (capture) {
+      final value = capture.barcodes.isEmpty ? null : capture.barcodes.first.rawValue;
+      if (value != null) Navigator.pop(context, value);
+    }),
+  );
 }
